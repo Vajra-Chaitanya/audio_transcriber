@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getSessionCookie } from "better-auth/cookies";
+
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -24,8 +24,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check for an active Better Auth session cookie
-  const session = getSessionCookie(request);
+  // Check for the fast frontend auth cookie
+  const session = request.cookies.get("frontend_auth")?.value === "true";
 
   if (!session) {
     // No session → redirect to login page

@@ -10,24 +10,25 @@
  * Deletes a single transcript that belongs to the authenticated user.
  */
 
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { headers } from "next/headers";
+import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 
 // ── GET ───────────────────────────────────────────────────────────────────────
 export async function GET() {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const cookieStore = await cookies();
+    const session = cookieStore.get("frontend_auth")?.value === "true";
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const user = await prisma.user.findFirst();
+    if (!user) return NextResponse.json({ error: "No user" }, { status: 500 });
+
     const transcripts = await prisma.transcript.findMany({
-      where: { userId: session.user.id },
+      where: { userId: user.id },
       orderBy: { createdAt: "desc" },
       select: { id: true, text: true, createdAt: true },
     });
@@ -45,13 +46,15 @@ export async function GET() {
 // ── DELETE ────────────────────────────────────────────────────────────────────
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const cookieStore = await cookies();
+    const session = cookieStore.get("frontend_auth")?.value === "true";
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const user = await prisma.user.findFirst();
+    if (!user) return NextResponse.json({ error: "No user" }, { status: 500 });
 
     const id = req.nextUrl.searchParams.get("id");
     if (!id) {
@@ -63,7 +66,7 @@ export async function DELETE(req: NextRequest) {
 
     // Verify the transcript belongs to the current user before deleting
     const transcript = await prisma.transcript.findFirst({
-      where: { id, userId: session.user.id },
+      where: { id, userId: user.id },
     });
 
     if (!transcript) {

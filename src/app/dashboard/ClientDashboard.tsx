@@ -86,12 +86,10 @@ export default function ClientDashboard({ user, initialTranscripts }: Props) {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
-  const handleLogout = async () => {
-    await signOut({
-      fetchOptions: {
-        onSuccess: () => router.push("/"),
-      },
-    });
+  const handleLogout = () => {
+    localStorage.removeItem("auth");
+    document.cookie = "frontend_auth=; path=/; max-age=0";
+    router.push("/");
   };
 
   // ── Upload logic ──────────────────────────────────────────────────────────

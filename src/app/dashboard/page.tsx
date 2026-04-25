@@ -5,9 +5,8 @@
  * instant render. Hands data to the Client Component for interactivity.
  */
 
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { headers } from "next/headers";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import ClientDashboard from "./ClientDashboard";
 
@@ -17,25 +16,22 @@ export const metadata = {
 };
 
 export default async function DashboardPage() {
-  // Server-side session check (zero client round-trip)
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const cookieStore = await cookies();
+  const session = cookieStore.get("frontend_auth")?.value === "true";
 
   if (!session) {
-    redirect("/");
+    redirect("/login");
   }
 
-  // Pre-load transcripts for instant first render
+  // Pre-load transcripts for instant first render (show all since frontend bypass)
   const transcripts = await prisma.transcript.findMany({
-    where: { userId: session.user.id },
     orderBy: { createdAt: "desc" },
     select: { id: true, text: true, createdAt: true },
   });
 
   return (
     <ClientDashboard
-      user={{ name: session.user.name, email: session.user.email }}
+      user={{ name: "Demo User", email: "demo@audiotranscriber.com" }}
       initialTranscripts={transcripts.map((t) => ({
         ...t,
         createdAt: t.createdAt.toISOString(), // serialise Date for client boundary

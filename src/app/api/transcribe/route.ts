@@ -6,10 +6,9 @@
  * Returns the saved Transcript record as JSON.
  */
 
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { transcribeAudio } from "@/services/gemini";
-import { headers } from "next/headers";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 // Maximum accepted file size: 10 MB (Gemini inline limit)
@@ -21,12 +20,17 @@ const ALLOWED_MIME_PREFIXES = ["audio/mpeg", "audio/wav", "audio/x-wav", "audio/
 export async function POST(req: Request) {
   try {
     // ── 1. Authentication ─────────────────────────────────────────────────────
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
+    const cookieStore = await cookies();
+    const session = cookieStore.get("frontend_auth")?.value === "true";
 
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get the default admin user since we bypassed full auth
+    const user = await prisma.user.findFirst();
+    if (!user) {
+      return NextResponse.json({ error: "No admin user found in database." }, { status: 500 });
     }
 
     // ── 2. Parse & validate FormData ──────────────────────────────────────────
@@ -68,7 +72,7 @@ export async function POST(req: Request) {
     const transcript = await prisma.transcript.create({
       data: {
         text: transcriptText,
-        userId: session.user.id,
+        userId: user.id,
       },
     });
 
