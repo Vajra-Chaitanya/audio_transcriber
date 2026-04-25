@@ -27,10 +27,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get the default admin user since we bypassed full auth
-    const user = await prisma.user.findFirst();
+    // Get or auto-create the default admin user (self-bootstrapping for fresh deployments)
+    let user = await prisma.user.findFirst();
     if (!user) {
-      return NextResponse.json({ error: "No admin user found in database." }, { status: 500 });
+      user = await prisma.user.create({
+        data: {
+          id: "admin-user-id",
+          name: "Demo User",
+          email: "demo@audiotranscriber.com",
+          emailVerified: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      });
     }
 
     // ── 2. Parse & validate FormData ──────────────────────────────────────────
