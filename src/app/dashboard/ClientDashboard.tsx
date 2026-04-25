@@ -24,13 +24,13 @@ interface Props {
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 
-const ALLOWED_EXTENSIONS = ["mp3", "wav", "m4a"];
+const ALLOWED_EXTENSIONS = ["mp3", "wav", "m4a", "webm", "ogg"];
 const MAX_FILE_SIZE_MB = 10;
 
 function validateFile(file: File): string | null {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
   if (!ALLOWED_EXTENSIONS.includes(ext)) {
-    return `Unsupported format ".${ext}". Please use MP3, WAV, or M4A.`;
+    return `Unsupported format ".${ext}". Please use MP3, WAV, M4A, or WEBM.`;
   }
   if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
     return `File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max size is ${MAX_FILE_SIZE_MB} MB.`;
@@ -81,8 +81,52 @@ export default function ClientDashboard({ user, initialTranscripts }: Props) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  // ── Recording logic ───────────────────────────────────────────────────────
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        // Generate a random filename for the recording
+        const file = new File([audioBlob], `recording-${Date.now()}.webm`, { type: "audio/webm" });
+        processFile(file);
+
+        // Stop all tracks to release the microphone
+        stream.getTracks().forEach((track) => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+      setError("");
+    } catch (err) {
+      console.error("Error accessing microphone:", err);
+      setError("Could not access microphone. Please ensure you have granted permissions.");
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
 
   // ── Auth ──────────────────────────────────────────────────────────────────
 
@@ -209,8 +253,43 @@ export default function ClientDashboard({ user, initialTranscripts }: Props) {
               Transcribe Audio
             </h2>
             <p className="section-subtitle">
-              Upload an audio file (MP3, WAV, M4A). The AI will process it and generate a highly accurate text transcript. Max {MAX_FILE_SIZE_MB}MB.
+              Record audio directly from your microphone or upload a file (MP3, WAV, M4A, WEBM). The AI will process it and generate a highly accurate text transcript. Max {MAX_FILE_SIZE_MB}MB.
             </p>
+
+            <div style={{ marginBottom: "1.5rem" }}>
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                className="btn"
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  backgroundColor: isRecording ? "#ef4444" : "var(--accent-primary)",
+                  boxShadow: isRecording ? "0 0 15px rgba(239, 68, 68, 0.4)" : undefined,
+                }}
+                disabled={isUploading}
+              >
+                {isRecording ? (
+                  <>
+                    <div style={{ width: 10, height: 10, borderRadius: "50%", backgroundColor: "white", animation: "pulse 1.5s infinite" }} />
+                    Stop Recording
+                  </>
+                ) : (
+                  <>
+                    <MicIcon />
+                    Record from Microphone
+                  </>
+                )}
+              </button>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", margin: "1rem 0", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+              <div style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.1)" }} />
+              <span style={{ padding: "0 1rem" }}>OR</span>
+              <div style={{ flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.1)" }} />
+            </div>
 
             {/* Status messages */}
             {error && (

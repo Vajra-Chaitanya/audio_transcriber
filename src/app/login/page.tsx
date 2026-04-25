@@ -17,11 +17,11 @@ export default function LoginPage() {
 
     if (email === "demo@audiotranscriber.com" && password === "AudioDemo2026!") {
       localStorage.setItem("auth", "true");
-      document.cookie = "frontend_auth=true; path=/; max-age=86400";
+      document.cookie = "frontend_auth=true; path=/; max-age=86400; SameSite=Lax; Secure";
 
-      setLoading(false); // ✅ ADD THIS
-
-      router.push("/dashboard"); // ✅ better than window.location
+      // Use window.location for a hard navigation.
+      // This ensures the browser reliably sends the newly set cookie to the Vercel Edge Middleware.
+      window.location.href = "/dashboard";
     } else {
       setLoading(false);
       setError("Invalid credentials");
